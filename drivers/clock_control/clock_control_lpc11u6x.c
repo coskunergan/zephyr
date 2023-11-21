@@ -10,9 +10,47 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 
+#include "a31t21x.h"
+
 #include <zephyr/drivers/clock_control/lpc11u6x_clock_control.h>
 
 #include "clock_control_lpc11u6x.h"
+
+struct PCU_Type{                                /*!< (@ 0x40001000) PA Structure                                           */
+   volatile uint32_t  MOD;                               /*!< (@ 0x40001000) Port n Mode Register                                   */
+   volatile uint32_t  TYP;                               /*!< (@ 0x40001004) Port n Output Type Selection Register                  */
+   volatile uint32_t  AFSR1;                             /*!< (@ 0x40001008) Port n Alternative Function Selection Registe                                                   1                                                                     */
+   volatile uint32_t  AFSR2;                             /*!< (@ 0x4000100C) Port n Alternative Function Selection Registe                                                   2                                                                     */
+   volatile uint32_t  PUPD;                              /*!< (@ 0x40001010) Port n Pull-up/down Resistor Selection Register        */
+   volatile uint32_t  INDR;                              /*!< (@ 0x40001014) Port n Input Data Register                             */
+   volatile uint32_t  OUTDR;                             /*!< (@ 0x40001018) Port n Output Data Register                            */
+   volatile uint32_t  BSR;                               /*!< (@ 0x4000101C) Port n Output Bit Set Register                         */
+   volatile uint32_t  BCR;                               /*!< (@ 0x40001020) Port n Output Bit Clear Register                       */
+   volatile uint32_t  OUTDMSK;                           /*!< (@ 0x40001024) Port n Output Data Mask Register                       */
+   volatile uint32_t  DBCR;                              /*!< (@ 0x40001028) Port n Debounce Control Register                       */
+   volatile uint32_t  IER;                               /*!< (@ 0x4000102C) Port n interrupt enable register                       */
+   volatile uint32_t  ISR;                               /*!< (@ 0x40001030) Port n interrupt status register                       */
+   volatile uint32_t  ICR;                               /*!< (@ 0x40001034) Port n interrupt control register                      */
+} ;
+
+#define GPIO_REG_OFFSET 			    	(0x100UL)
+
+enum gpio_port
+{
+    PORTA       = 0,
+    PORTB       = 1,
+    PORTC       = 2,
+    PORTD       = 3,
+    PORTE       = 4,
+    PORTF       = 5,
+    PORT_MAX    = 6,
+};
+
+
+static inline struct PCU_Type *GPIO_REG(enum gpio_port port)
+{
+    return ( struct PCU_Type *)(PA_BASE + (GPIO_REG_OFFSET * port));
+}
 
 static void syscon_power_up(struct lpc11u6x_syscon_regs *syscon,
 			    uint32_t bit, bool enable)
@@ -87,6 +125,8 @@ static void syscon_frg_init(struct lpc11u6x_syscon_regs *syscon)
 {
 	uint32_t div;
 
+	return;
+
 	div = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC / LPC11U6X_USART_CLOCK_RATE;
 	if (!div) {
 		div = 1;
@@ -112,6 +152,8 @@ static int lpc11u6x_clock_control_on(const struct device *dev,
 	struct lpc11u6x_syscon_data *data = dev->data;
 	uint32_t clk_mask = 0, reset_mask = 0;
 	int ret = 0, init_frg = 0;
+
+	return 0;
 
 	k_mutex_lock(&data->mutex, K_FOREVER);
 
@@ -184,6 +226,8 @@ static int lpc11u6x_clock_control_off(const struct device *dev,
 	struct lpc11u6x_syscon_data *data = dev->data;
 	uint32_t clk_mask = 0, reset_mask = 0;
 	int ret = 0, deinit_frg = 0;
+
+	return 0;
 
 	k_mutex_lock(&data->mutex, K_FOREVER);
 
@@ -260,18 +304,123 @@ static int lpc11u6x_clock_control_get_rate(const struct device *dev,
 	case LPC11U6X_CLOCK_I2C1:
 	case LPC11U6X_CLOCK_GPIO:
 	case LPC11U6X_CLOCK_USART0:
-		*rate = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
-		break;
 	case LPC11U6X_CLOCK_USART1:
 	case LPC11U6X_CLOCK_USART2:
 	case LPC11U6X_CLOCK_USART3:
 	case LPC11U6X_CLOCK_USART4:
-		*rate = LPC11U6X_USART_CLOCK_RATE;
+		*rate = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
 		break;
 	default:
 		return -EINVAL;
 	}
 	return 0;
+}
+
+enum scu_clock
+{
+    SCU_CLOCK_LSI			= 0,					/**< Internal low speed clcok(500Khz) */
+    SCU_CLOCK_LSE			= 1,					/**< External low speed clcok */
+    SCU_CLOCK_HSI			= 2,					/**< Internal high speed clock(32Mhz) */
+    SCU_CLOCK_HSE			= 6,					/**< Extern high speed clock */
+    SCU_CLOCK_PLL			= 7,					/**< PLL clock from HSE 8MHz */
+};
+
+/**
+ * SCU clock divider
+ */
+enum scu_clock_div
+{
+    SCU_CLOCK_DIV_NONE			= 0,    /**< Do not divide clock */
+    SCU_CLOCK_DIV_1					= 8,    /**< Divide the clock by 1 */
+    SCU_CLOCK_DIV_2					= 9,    /**< Divide the clock by 2 */
+    SCU_CLOCK_DIV_4					= 10,   /**< Divide the clock by 4 */
+    SCU_CLOCK_DIV_8					= 11,   /**< Divide the clock by 8 */
+    SCU_CLOCK_DIV_16				= 12,   /**< Divide the clock by 16 */
+    SCU_CLOCK_DIV_32				= 13,   /**< Divide the clock by 32 */
+};
+
+static void SCU_ClockEnable(enum scu_clock mclk_sel, enum scu_clock_div mclk_div)
+{
+    uint32_t reg_val;
+    uint32_t delay_1ms;
+    volatile uint32_t i;
+
+    delay_1ms = 21 * (16000000 / 500000);
+
+    switch(mclk_sel)
+    {
+        case SCU_CLOCK_LSI:
+            reg_val = SCU->CSCR;
+            reg_val &= ~(0x0F << 8);
+            reg_val |= (mclk_div << 8);
+            SCU->CSCR = reg_val | (0xA507UL << 16);
+
+            for(i = 0; i < delay_1ms; i++);
+
+            reg_val = SCU->SCCR;
+            reg_val &= ~(0x07 << 0);
+            reg_val |= mclk_sel;
+            SCU->SCCR = (0x570AUL << 16) | reg_val;
+            break;
+        case SCU_CLOCK_LSE:
+            reg_val = SCU->CSCR;
+            reg_val &= ~(0x0F << 12);
+            reg_val |= (mclk_div << 12);
+            SCU->CSCR = reg_val | (0xA507UL << 16);
+
+            for(i = 0; i < delay_1ms * 500; i++);
+
+            reg_val = SCU->SCCR;
+            reg_val &= ~(0x07 << 0);
+            reg_val |= mclk_sel;
+            SCU->SCCR = (0x570AUL << 16) | reg_val;
+            break;
+        case SCU_CLOCK_HSI:
+            reg_val = SCU->CSCR;
+            reg_val &= ~(0x0F << 4);
+            reg_val |= (mclk_div << 4);
+            SCU->CSCR = reg_val | (0xA507UL << 16);
+
+            for(i = 0; i < delay_1ms; i++);
+
+            reg_val = SCU->SCCR;
+            reg_val &= ~(0x07 << 0);
+            reg_val |= mclk_sel;
+            SCU->SCCR = (0x570AUL << 16) | reg_val;
+            break;
+        case SCU_CLOCK_HSE:
+            reg_val = SCU->CSCR;
+            reg_val &= ~(0x0F << 0);
+            reg_val |= (mclk_div << 0);
+            SCU->CSCR = reg_val | (0xA507UL << 16);
+
+            for(i = 0; i < delay_1ms * 10; i++);
+
+            reg_val = SCU->SCCR;
+            reg_val &= ~(0x07 << 0);
+            reg_val |= mclk_sel;
+            SCU->SCCR = (0x570AUL << 16) | reg_val;
+            break;
+        case SCU_CLOCK_PLL:
+            // if(g_scb.pclk_src == SCU_PLL_CLOCK_SRC_HSI)
+            // {
+            //     reg_val = SCU->SCCR;
+            //     reg_val &= ~(0x07 << 0);
+            //     reg_val |= 0x03;
+            //     SCU->SCCR = (0x570AUL << 16) | reg_val;
+            // }
+            // else
+            // {
+            //     reg_val = SCU->SCCR;
+            //     reg_val &= ~(0x07 << 0);
+            //     reg_val |= mclk_sel;
+            //     SCU->SCCR = (0x570AUL << 16) | reg_val;
+            // }
+            break;
+        default:
+            //DRIVER_ASSERT(0);
+            break;
+    }
 }
 
 static int lpc11u6x_syscon_init(const struct device *dev)
@@ -280,7 +429,89 @@ static int lpc11u6x_syscon_init(const struct device *dev)
 	struct lpc11u6x_syscon_data *data = dev->data;
 	uint32_t val;
 
+	/* WDT Disable */
+    WDT->CR = (0x5A69 << 16)
+              | (0x25 << 10)
+              | (0x1A << 4);
+
+    /* GPIO Access Enable */
+    PORTEN->EN = 0x15;
+    PORTEN->EN = 0x51;
+
+    /* Flash Access Time Configure */
+    FMC->MR = 0x81;
+    FMC->MR = 0x28;
+    FMC->CFG = (0x7858 << 16) | (3 << 8);		// Flash Access in 4 cycles (3-wait)
+    FMC->MR = 0;	
+
+    struct PCU_Type *pcu;
+    uint8_t i;
+
+    /* Peripheral Enable(0:Disable, 1:Enable) */
+    SCU->PER1 = SCU->PER1
+                | (1 << 13)	// GPIOF
+                | (1 << 12)	// GPIOE
+                | (1 << 11)	// GPIOD
+                | (1 << 10)	// GPIOC
+                | (1 << 9)	// GPIOB
+                | (1 << 8)	// GPIOA
+                ;
+    /* Peripheral Clock Enable(0:Disable, 1:Enable) */ 
+    SCU->PCER1 = SCU->PCER1
+                 | (1 << 13)	// GPIOF
+                 | (1 << 12)	// GPIOE
+                 | (1 << 11)	// GPIOD
+                 | (1 << 10)	// GPIOC
+                 | (1 << 9)	// GPIOB
+                 | (1 << 8)	// GPIOA
+                 ;
+
+    /* Set Port Output to Low except below functions */
+    for(i = 0; i < PORT_MAX; i++)
+    {
+        // Get Register Name
+        pcu = GPIO_REG((enum gpio_port)i);
+
+        // PB3(BOOT)
+        if(i == PORTB)
+        {
+            pcu->OUTDR	= 0;
+            pcu->MOD		= 0x55555595UL;
+            pcu->AFSR1	= (1 << 12);
+            pcu->AFSR2	= 0;
+        }
+        // PE12(nRESET)
+        else if(i == PORTE)
+        {
+            pcu->OUTDR	= 0;
+            pcu->MOD		= 0x56555555UL;
+            pcu->AFSR1	= 0;
+            pcu->AFSR2	= (1 << 16);
+        }
+        // PF7(XOUT),PF6(XIN),PF5(SXOUT),PF4(SXIN),PF1(SWCLK),PF0(SWDIO)
+        else if(i == PORTF)
+        {
+            pcu->OUTDR	= 0;
+            pcu->MOD		= 0x5555AA5AUL;
+            pcu->AFSR1	= (4 << 28) | (4 << 24) | (4 << 20) | (4 << 16) | (3 << 4) | (3 << 0);
+            pcu->AFSR2	= 0;
+        }
+        // Others
+        else
+        {
+            pcu->OUTDR	= 0;
+            pcu->MOD		= 0x55555555UL;
+            pcu->AFSR1	= 0;
+            pcu->AFSR2	= 0;
+        }
+        pcu->TYP = 0;		// Push-pull Output
+        pcu->PUPD = 0;	// Pull-up/down Disable
+    }
+
+	SCU_ClockEnable(SCU_CLOCK_HSI, SCU_CLOCK_DIV_1); // 32MHz
+
 	k_mutex_init(&data->mutex);
+	return 0;
 	data->frg_in_use = 0;
 	data->usart34_in_use = 0;
 	/* Enable SRAM1 and USB ram if needed */

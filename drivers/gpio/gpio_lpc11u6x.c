@@ -21,6 +21,7 @@
 #include <zephyr/irq.h>
 
 #include <soc.h>
+#include "a31t21x.h"
 
 #include <zephyr/drivers/gpio/gpio_utils.h>
 
@@ -31,27 +32,46 @@
 #define LPC11U6X_GPIO_REGS	0x2000
 #define LPC11U6X_PINT_REGS	0x4000
 
-/**
- * @brief Structure mapping the GPIO registers.
- *
- * @note The byte and word pin registers are not included because they are
- *       not used by this driver. A 0x2000 offset is applied to skip them.
- */
-struct lpc11u6x_gpio_regs {
-	volatile uint32_t dir[3];
-	volatile uint32_t _unused1[29];
-	volatile uint32_t mask[3];
-	volatile uint32_t _unused2[29];
-	volatile uint32_t pin[3];
-	volatile uint32_t _unused3[29];
-	volatile uint32_t mpin[3];
-	volatile uint32_t _unused4[29];
-	volatile uint32_t set[3];
-	volatile uint32_t _unused5[29];
-	volatile uint32_t clr[3];
-	volatile uint32_t _unused6[29];
-	volatile uint32_t not[3];
+struct PCU_Type{                                /*!< (@ 0x40001000) PA Structure                                           */
+   volatile uint32_t  MOD;                               /*!< (@ 0x40001000) Port n Mode Register                                   */
+   volatile uint32_t  TYP;                               /*!< (@ 0x40001004) Port n Output Type Selection Register                  */
+   volatile uint32_t  AFSR1;                             /*!< (@ 0x40001008) Port n Alternative Function Selection Registe                                                   1                                                                     */
+   volatile uint32_t  AFSR2;                             /*!< (@ 0x4000100C) Port n Alternative Function Selection Registe                                                   2                                                                     */
+   volatile uint32_t  PUPD;                              /*!< (@ 0x40001010) Port n Pull-up/down Resistor Selection Register        */
+   volatile uint32_t  INDR;                              /*!< (@ 0x40001014) Port n Input Data Register                             */
+   volatile uint32_t  OUTDR;                             /*!< (@ 0x40001018) Port n Output Data Register                            */
+   volatile uint32_t  BSR;                               /*!< (@ 0x4000101C) Port n Output Bit Set Register                         */
+   volatile uint32_t  BCR;                               /*!< (@ 0x40001020) Port n Output Bit Clear Register                       */
+   volatile uint32_t  OUTDMSK;                           /*!< (@ 0x40001024) Port n Output Data Mask Register                       */
+   volatile uint32_t  DBCR;                              /*!< (@ 0x40001028) Port n Debounce Control Register                       */
+   volatile uint32_t  IER;                               /*!< (@ 0x4000102C) Port n interrupt enable register                       */
+   volatile uint32_t  ISR;                               /*!< (@ 0x40001030) Port n interrupt status register                       */
+   volatile uint32_t  ICR;                               /*!< (@ 0x40001034) Port n interrupt control register                      */
+} ;
+
+#define PCU_MOD_Msk							(0x03UL)
+#define PCU_TYP_Msk							(0x01UL)
+#define PCU_AFSR_Msk						(0x0FUL)
+#define PCU_PUPD_Msk						(0x03UL)
+
+#define GPIO_REG_OFFSET 			    	(0x100UL)
+
+enum gpio_port
+{
+    PORTA       = 0,
+    PORTB       = 1,
+    PORTC       = 2,
+    PORTD       = 3,
+    PORTE       = 4,
+    PORTF       = 5,
+    PORT_MAX    = 6,
 };
+
+
+static inline struct PCU_Type *GPIO_REG(enum gpio_port port)
+{
+    return ( struct PCU_Type *)(PA_BASE + (GPIO_REG_OFFSET * port));
+}
 
 /**
  * @brief Structure mapping the PINT registers.
@@ -106,91 +126,85 @@ static int gpio_lpc11u6x_pin_configure(const struct device *port,
 				       gpio_pin_t pin, gpio_flags_t flags)
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
-	uint8_t port_num = config->port_num;
-	uint32_t offset;
-	uint32_t func;
+	struct PCU_Type *pcu  = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 
 	if (pin >= config->ngpios) {
 		return -EINVAL;
 	}
-
+	
 	/*
 	 * PIO0_4 and PIO0_5 are "true" open drain pins muxed with the I2C port
 	 * 0. They still can be configured as GPIOs but only in open drain mode
 	 * and with no pull-down or pull-up resistor enabled.
 	 */
-	if (port_num == 0 && (pin == 4 || pin == 5) &&
-		((flags & GPIO_OPEN_DRAIN) == 0 ||
-		 (flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)))) {
-		return -EINVAL;
-	}
+	// if (port_num == 0 && (pin == 4 || pin == 5) &&
+	// 	((flags & GPIO_OPEN_DRAIN) == 0 ||
+	// 	 (flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)))) {
+	// 	return -EINVAL;
+	// }
 
 	/*
 	 * For PIO0_0 and PIO0_[10-15] function 1 enables GPIO mode. For all
 	 * the other pins, function 0 must be selected.
 	 */
-	if (port_num == 0 && (pin == 0 || (pin >= 10 && pin <= 15))) {
-		func = IOCON_FUNC1;
-	} else {
-		func = IOCON_FUNC0;
-	}
+	// if (port_num == 0 && (pin == 0 || (pin >= 10 && pin <= 15))) {
+	// 	func = IOCON_FUNC1;
+	// } else {
+	// 	func = IOCON_FUNC0;
+	// }
 
 	if (flags & GPIO_SINGLE_ENDED) {
 		/* Open source mode is not supported. */
 		if (flags & GPIO_LINE_OPEN_DRAIN) {
-			func |= IOCON_PIO_OD(1);
 		} else {
 			return -ENOTSUP;
 		}
 	}
 
+	pcu->PUPD &= (0x3UL << (pin << 1));
 	if (flags & GPIO_PULL_UP) {
-		func |= IOCON_PIO_MODE(0x2);
+		pcu->PUPD &= (0x1UL << (pin<<1));
 	} else if (flags & GPIO_PULL_DOWN) {
-		func |= IOCON_PIO_MODE(0x1);
-	} else {
-		func |= IOCON_PIO_MODE(0x0);
+		pcu->PUPD &= (0x2UL << (pin<<1));
 	}
 
 	/* Handle 4 bytes hole between PIO2_1 and PIO2_2. */
-	if (port_num == 2 && pin > 1) {
-		offset = pin + 1;
-	} else {
-		offset = pin;
-	}
+	// if (port_num == 2 && pin > 1) {
+	// 	offset = pin + 1;
+	// } else {
+	// 	offset = pin;
+	// }
 	/* iocon base + offset gives configuration register for this pin */
-	config->iocon_base[offset] = func;
+	//config->iocon_base[offset] = func;
 
 	/* Initial output value. */
 	if (flags & GPIO_OUTPUT_INIT_HIGH) {
-		gpio_regs->set[port_num] |= BIT(pin);
+		pcu->BSR |= BIT(pin);
 	}
 
 	if (flags & GPIO_OUTPUT_INIT_LOW) {
-		gpio_regs->clr[port_num] |= BIT(pin);
+		pcu->BCR |= BIT(pin);
 	}
 
-	/*
-	 * TODO: maybe configure the STARTERP0 register to allow wake-up from
-	 * deep-sleep or power-down modes.
-	 */
-
 	/* Configure GPIO direction. */
-	WRITE_BIT(gpio_regs->dir[port_num], pin, flags & GPIO_OUTPUT);
-
+	WRITE_BIT(pcu->TYP, pin, flags & GPIO_OPEN_DRAIN);
+    uint32_t reg_val = pcu->MOD;
+    reg_val &= ~(0x3UL << (pin << 1));
+	if(flags & GPIO_OUTPUT)
+	{
+    	reg_val |= (1UL << (pin << 1));
+	}
+    pcu->MOD = reg_val;	
 	return 0;
 }
 
 static int gpio_lpc11u6x_port_get_raw(const struct device *port,
-				      gpio_port_value_t *value)
+				      gpio_port_value_t *value) // coskun ok
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
+	struct PCU_Type *pcu  = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 
-	*value = gpio_regs->pin[config->port_num];
+	*value = pcu->INDR;
 
 	return 0;
 }
@@ -200,20 +214,18 @@ static int gpio_lpc11u6x_port_set_masked_raw(const struct device *port,
 					     gpio_port_value_t value)
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
-	uint8_t port_num = config->port_num;
+	struct PCU_Type *pcu  = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 	uint32_t orig_mask;
 
-	orig_mask = gpio_regs->mask[port_num];
+	orig_mask = pcu->OUTDMSK;
 	/* Apply inverted mask (bit set to 1 masks the pin). */
-	gpio_regs->mask[port_num] = ~mask;
+	pcu->OUTDMSK = ~mask;
 	compiler_barrier();
 	/* Update pins values. */
-	gpio_regs->mpin[port_num] = value;
+	pcu->OUTDR = value;
 	compiler_barrier();
 	/* Restore original mask. */
-	gpio_regs->mask[port_num] = orig_mask;
+	pcu->OUTDMSK = orig_mask;
 	compiler_barrier();
 
 	return 0;
@@ -223,10 +235,9 @@ static int gpio_lpc11u6x_port_set_bits_raw(const struct device *port,
 					   gpio_port_pins_t pins)
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
+	struct PCU_Type *pcu  = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 
-	gpio_regs->set[config->port_num] = pins;
+	pcu->BSR = pins;
 
 	return 0;
 }
@@ -235,10 +246,9 @@ static int gpio_lpc11u6x_port_clear_bits_raw(const struct device *port,
 					     gpio_port_pins_t pins)
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
+	struct PCU_Type *pcu  = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 
-	gpio_regs->clr[config->port_num] = pins;
+	pcu->BCR = pins;
 
 	return 0;
 }
@@ -247,10 +257,16 @@ static int gpio_lpc11u6x_port_toggle_bits(const struct device *port,
 					  gpio_port_pins_t pins)
 {
 	const struct gpio_lpc11u6x_config *config = port->config;
-	struct lpc11u6x_gpio_regs *gpio_regs = (struct lpc11u6x_gpio_regs *)
-		(config->shared->gpio_base + LPC11U6X_GPIO_REGS);
+	struct PCU_Type *pcu = (struct PCU_Type *)(config->shared->gpio_base + (config->port_num * GPIO_REG_OFFSET));
 
-	gpio_regs->not[config->port_num] = pins;
+	if(pcu->OUTDR & pins)
+	{
+		pcu->BCR = pins;
+	}
+	else
+	{
+		pcu->BSR = pins;
+	}
 
 	return 0;
 }
@@ -327,6 +343,8 @@ static int gpio_lpc11u6x_pin_interrupt_configure(const struct device *port,
 		(config->shared->gpio_base + LPC11U6X_PINT_REGS);
 	uint8_t intpin;
 	int irq;
+
+	return 0;
 
 	if (pin >= config->ngpios) {
 		return -EINVAL;
@@ -515,20 +533,23 @@ do {							                \
 	irq_enable(DT_INST_IRQ_BY_IDX(0, n, irq));			\
 } while (false)
 
+
 static int gpio_lpc11u6x_init(const struct device *dev)
 {
 	const struct gpio_lpc11u6x_config *config = dev->config;
 	int ret;
 	static bool gpio_ready;
 
+	//return 0;
+
 	/* Initialize shared resources only once. */
 	if (gpio_ready) {
 		return 0;
 	}
 
-	if (!device_is_ready(config->shared->clock_dev)) {
-		return -ENODEV;
-	}
+	//if (!device_is_ready(config->shared->clock_dev)) {
+	//	return -ENODEV;
+	//}
 
 	/* Enable GPIO and PINT clocks. */
 	ret = clock_control_on(config->shared->clock_dev, config->shared->clock_subsys);
@@ -599,4 +620,16 @@ GPIO_LPC11U6X_INIT(1);
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(gpio2), okay)
 GPIO_LPC11U6X_INIT(2);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(gpio3), okay)
+GPIO_LPC11U6X_INIT(3);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(gpio4), okay)
+GPIO_LPC11U6X_INIT(4);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(gpio5), okay)
+GPIO_LPC11U6X_INIT(5);
 #endif

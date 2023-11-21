@@ -1,15 +1,13 @@
 /*
  * Copyright (c) 2020, Seagate Technology LLC
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 
  */
 
 #ifndef ZEPHYR_DRIVERS_SERIAL_UART_LPC11U6X_H_
 #define ZEPHYR_DRIVERS_SERIAL_UART_LPC11U6X_H_
 
 #include <zephyr/drivers/pinctrl.h>
-
-#define LPC11U6X_UART0_CLK 14745600
 
 #define LPC11U6X_UART0_LCR_WLS_5BITS             0
 #define LPC11U6X_UART0_LCR_WLS_6BITS             1
@@ -36,15 +34,15 @@
 
 #define LPC11U6X_UART0_IER_RBRINTEN              (1 << 0)
 #define LPC11U6X_UART0_IER_THREINTEN             (1 << 1)
-#define LPC11U6X_UART0_IER_RLSINTEN              (1 << 2)
-#define LPC11U6X_UART0_IER_MASK                  (0x30F)
+//#define LPC11U6X_UART0_IER_RLSINTEN              (1 << 2)
+#define LPC11U6X_UART0_IER_MASK                  (0x33F)
 
 #define LPC11U6X_UART0_IIR_STATUS                (0x1 << 0)
 #define LPC11U6X_UART0_IIR_INTID(x)              (((x) >> 1) & 0x7)
-#define LPC11U6X_UART0_IIR_INTID_RLS             0x3
+//#define LPC11U6X_UART0_IIR_INTID_RLS             0x3
 #define LPC11U6X_UART0_IIR_INTID_RDA             0x2
 #define LPC11U6X_UART0_IIR_INTID_CTI             0x6
-#define LPC11U6X_UART0_IIR_INTID_THRE            0x1
+//#define LPC11U6X_UART0_IIR_INTID_THRE            0x1
 
 #define LPC11U6X_UART0_FIFO_SIZE                 16
 
@@ -90,79 +88,57 @@
 
 #define LPC11U6X_UARTX_DEVICE_PER_IRQ            2
 
-struct lpc11u6x_uart0_regs {
-	union {
-		volatile const uint32_t rbr; /* RX buffer (RO) */
-		volatile uint32_t thr;       /* TX buffer (WO) */
-		volatile uint32_t dll;       /* Divisor latch LSB */
-	};
-	union {
-		volatile uint32_t dlm;       /* Divisor latch MSB */
-		volatile uint32_t ier;       /* Interrupt enable */
-	};
-	union {
-		volatile uint32_t iir;       /* Interrupt ID */
-		volatile uint32_t fcr;       /* FIFO Control */
-	};
-	volatile uint32_t lcr;               /* Line Control */
-	volatile uint32_t mcr;               /* Modem Control */
-	volatile uint32_t lsr;               /* Line Status */
-	volatile uint32_t msr;               /* Modem Status */
-	volatile uint32_t scr;               /* Scratch pad */
-	volatile uint32_t acr;               /* Auto-baud Control */
-	volatile uint32_t icr;               /* IrDA Control */
-	volatile uint32_t fdr;               /* Fractional Divider */
-	volatile uint32_t osr;               /* Oversampling register */
-	volatile uint32_t ter;               /* Transmit enable */
-	volatile uint32_t reserved1[3];
-	volatile uint32_t hden;              /* Half duplex */
-	volatile uint32_t reserved2;
-	volatile uint32_t sci_ctrl;          /* Smart card interface */
-	volatile uint32_t rs485_ctrl;        /* RS-485 control */
-	volatile uint32_t rs485_addr_match;  /* RS-485 address match */
-	volatile uint32_t rs485_dly;         /* RS-485 delay direction control
-					      * delay
-					      */
-	volatile uint32_t sync_ctrl;         /* Synchronous mode control */
-};
-
-struct lpc11u6x_uart0_config {
-	struct lpc11u6x_uart0_regs *uart0;
-	const struct device *clock_dev;
-	uint32_t baudrate;
-	uint32_t clkid;
-	const struct pinctrl_dev_config *pincfg;
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	void (*irq_config_func)(const struct device *dev);
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN */
-};
-
-struct lpc11u6x_uart0_data {
-	uint32_t baudrate;
-	uint8_t parity;
-	uint8_t stop_bits;
-	uint8_t data_bits;
-	uint8_t flow_ctrl;
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	uart_irq_callback_user_data_t cb;
-	void *cb_data;
-	uint32_t cached_iir;
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN */
-};
+// struct lpc11u6x_uart0_regs {
+// 	union {
+// 		volatile const uint32_t rbr; /* RX buffer (RO) */
+// 		volatile uint32_t thr;       /* TX buffer (WO) */
+// 		volatile uint32_t dll;       /* Divisor latch LSB */
+// 	};
+// 	union {
+// 		volatile uint32_t dlm;       /* Divisor latch MSB */
+// 		volatile uint32_t ier;       /* Interrupt enable */
+// 	};
+// 	union {
+// 		volatile uint32_t iir;       /* Interrupt ID */
+// 		volatile uint32_t fcr;       /* FIFO Control */
+// 	};
+// 	volatile uint32_t lcr;               /* Line Control */
+// 	volatile uint32_t mcr;               /* Modem Control */
+// 	volatile uint32_t lsr;               /* Line Status */
+// 	volatile uint32_t msr;               /* Modem Status */
+// 	volatile uint32_t scr;               /* Scratch pad */
+// 	volatile uint32_t acr;               /* Auto-baud Control */
+// 	volatile uint32_t icr;               /* IrDA Control */
+// 	volatile uint32_t fdr;               /* Fractional Divider */
+// 	volatile uint32_t osr;               /* Oversampling register */
+// 	volatile uint32_t ter;               /* Transmit enable */
+// 	volatile uint32_t reserved1[3];
+// 	volatile uint32_t hden;              /* Half duplex */
+// 	volatile uint32_t reserved2;
+// 	volatile uint32_t sci_ctrl;          /* Smart card interface */
+// 	volatile uint32_t rs485_ctrl;        /* RS-485 control */
+// 	volatile uint32_t rs485_addr_match;  /* RS-485 address match */
+// 	volatile uint32_t rs485_dly;         /* RS-485 delay direction control
+// 					      * delay
+// 					      */
+// 	volatile uint32_t sync_ctrl;         /* Synchronous mode control */
+// };
 
 struct lpc11u6x_uartx_regs {
-	volatile uint32_t cfg;               /* Configuration register */
-	volatile uint32_t ctl;               /* Control register */
-	volatile uint32_t stat;              /* Status register */
-	volatile uint32_t int_en_set;        /* Interrupt enable and set */
-	volatile uint32_t int_en_clr;        /* Interrupt enable clear */
-	volatile const uint32_t rx_dat;      /* Receiver data */
-	volatile const uint32_t rx_dat_stat; /* Receiver data status */
-	volatile uint32_t tx_dat;            /* Transmit data */
-	volatile uint32_t brg;               /* Baud rate generator */
-	volatile const uint32_t int_stat;    /* Interrupt status */
-	volatile uint32_t osr;               /* Oversample selection */
-	volatile uint32_t addr;              /* Address register*/
+  union {
+      volatile uint32_t  thr;                             /*!< (@ 0x40004000) Transmit Data Hold Register                            */
+      volatile const uint32_t  rbr;                             /*!< (@ 0x40004000) Receive Buffer Register                                */
+  };
+   volatile uint32_t  ier;                               /*!< (@ 0x40004004) UART Interrupt Enable Register                         */
+   volatile uint32_t  iir;                               /*!< (@ 0x40004008) UART Interrupt ID Register                             */
+   volatile uint32_t  lcr;                               /*!< (@ 0x4000400C) UART Line Control Register                             */
+   volatile uint32_t  dcr;                               /*!< (@ 0x40004010) UART Data Control Register                             */
+   volatile uint32_t  lsr;                               /*!< (@ 0x40004014) UART Line Status Register                              */
+   volatile const uint32_t  RESERVED[2];
+   volatile uint32_t  bdr;                               /*!< (@ 0x40004020) Baud rate Divisor Latch Register                       */
+   volatile uint32_t  bfr;                               /*!< (@ 0x40004024) Baud rate Fraction Counter Register                    */
+   volatile const uint32_t  RESERVED1[2];
+   volatile uint32_t  IDTR;                              /*!< (@ 0x40004030) Inter-frame Delay Time Register                        */
 };
 
 struct lpc11u6x_uartx_config {
@@ -182,32 +158,8 @@ struct lpc11u6x_uartx_data {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_callback_user_data_t cb;
 	void *cb_data;
+	uint32_t cached_iir;
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 };
 
-/* Since UART1 and UART4 share the same IRQ (as well as UART2 and UART3),
- * we need to give the ISR a way to know all the devices that should be
- * notified when said IRQ is raised
- */
-struct lpc11u6x_uartx_shared_irq {
-	const struct device *devices[LPC11U6X_UARTX_DEVICE_PER_IRQ];
-};
-
-#if CONFIG_UART_INTERRUPT_DRIVEN &&				\
-	(DT_NODE_HAS_STATUS(DT_NODELABEL(uart1), okay) ||	\
-	 DT_NODE_HAS_STATUS(DT_NODELABEL(uart4), okay))
-static void lpc11u6x_uartx_isr_config_1(const struct device *dev);
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN &&
-	* (DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay) ||
-	* DT_NODE_HAS_STATUS(DT_NODELABEL(uart3), okay))
-	*/
-
-#if CONFIG_UART_INTERRUPT_DRIVEN &&				\
-	(DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay) ||	\
-	 DT_NODE_HAS_STATUS(DT_NODELABEL(uart3), okay))
-static void lpc11u6x_uartx_isr_config_2(const struct device *dev);
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN &&
-	* (DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay) ||
-	* DT_NODE_HAS_STATUS(DT_NODELABEL(uart3), okay))
-	*/
-#endif /* ZEPHYR_DRIVERS_SERIAL_UART_LPC11U6X_H_ */
+#endif /*ZEPHYR_DRIVERS_SERIAL_UART_LPC11U6X_H_*/
