@@ -102,10 +102,11 @@
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
 
-	ft5336: ft5336@38 {
+	ft5336: ft5336@26 {
 		compatible = "focaltech,ft5336";
-		reg = <0x38>;
+		reg = <0x26>;
 		int-gpios = <&gpioi 13 0>;
+		reset-gpios = <&gpioh 2 0>;	
 	};
 };
 
@@ -267,21 +268,22 @@ zephyr_udc0: &usbotg_fs {
 	ext-sdram = <&sdram1>;
 	status = "okay";
 
-	width = <480>;
-	height = <272>;
-	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
+	width = <800>;
+	height = <480>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_888>;
 	display-timings {
 		compatible = "zephyr,panel-timing";
-		de-active = <0>;
-		pixelclk-active = <0>;
-		hsync-active = <0>;
-		vsync-active = <0>;
-		hsync-len = <1>;
-		vsync-len = <10>;
-		hback-porch = <43>;
-		vback-porch = <12>;
+		de-active = <1>;
+		pixelclk-active = <1>;
+		hsync-active = <1>;
+		vsync-active = <1>;
+		hsync-len = <4>;
+		vsync-len = <4>;
+		hback-porch = <8>;
+		vback-porch = <8>;
 		hfront-porch = <8>;
-		vfront-porch = <4>;
+		vfront-porch = <8>;		
+		clock-frequency = <25000000>;
 	};
 	def-back-color-red = <0xFF>;
 	def-back-color-green = <0xFF>;

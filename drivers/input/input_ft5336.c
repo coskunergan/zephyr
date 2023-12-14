@@ -70,36 +70,50 @@ static int ft5336_process(const struct device *dev)
 
 	int r;
 	uint8_t points;
-	uint8_t coords[4U];
+	uint8_t coords[9U];
 	uint8_t event;
 	uint16_t row, col;
 	bool pressed;
 
-	/* obtain number of touch points (NOTE: multi-touch ignored) */
-	r = i2c_reg_read_byte_dt(&config->bus, REG_TD_STATUS, &points);
+	// /* obtain number of touch points (NOTE: multi-touch ignored) */
+	// r = i2c_reg_read_byte_dt(&config->bus, REG_TD_STATUS, &points);
+	// if (r < 0) {
+		//return r;
+	// }
+	
+	r = i2c_burst_read_dt(&config->bus, REG_P1_XH, coords, sizeof(coords));
 	if (r < 0) {
 		return r;
-	}
+	}		
+	
+	pressed = (coords[4] == 0x5A && coords[5] != 0xFF && coords[6] != 0xFF && coords[7] != 0xFF);
+	
+	
+	col = (uint16_t)((uint16_t)((uint16_t)coords[5] & 0x70) << 4) | coords[6];
+	row = (uint16_t)((uint16_t)((uint16_t)coords[5] & 0x7) << 8) | coords[7];
+		
+	row = (row * 480UL) / 2047UL;	
+	col = (col * 800UL) / 2047UL;
 
-	points = (points >> TOUCH_POINTS_POS) & TOUCH_POINTS_MSK;
-	if (points != 0U && points != 1U) {
-		return 0;
-	}
+	//points = (points >> TOUCH_POINTS_POS) & TOUCH_POINTS_MSK;
+	//if (points != 0U && points != 1U) {
+	//	return 0;
+	//}
 
 	/* obtain first point X, Y coordinates and event from:
 	 * REG_P1_XH, REG_P1_XL, REG_P1_YH, REG_P1_YL.
 	 */
-	r = i2c_burst_read_dt(&config->bus, REG_P1_XH, coords, sizeof(coords));
-	if (r < 0) {
-		return r;
-	}
+	// r = i2c_burst_read_dt(&config->bus, REG_P1_XH, coords, sizeof(coords));
+	// if (r < 0) {
+		// return r;
+	// }
 
-	event = (coords[0] >> EVENT_POS) & EVENT_MSK;
-	row = ((coords[0] & POSITION_H_MSK) << 8U) | coords[1];
-	col = ((coords[2] & POSITION_H_MSK) << 8U) | coords[3];
-	pressed = (event == EVENT_PRESS_DOWN) || (event == EVENT_CONTACT);
+	// event = (coords[0] >> EVENT_POS) & EVENT_MSK;
+	// row = ((coords[0] & POSITION_H_MSK) << 8U) | coords[1];
+	// col = ((coords[2] & POSITION_H_MSK) << 8U) | coords[3];
+	// pressed = (event == EVENT_PRESS_DOWN) || (event == EVENT_CONTACT);
 
-	LOG_DBG("event: %d, row: %d, col: %d", event, row, col);
+	//LOG_DBG("event: %d, row: %d, col: %d", event, row, col);
 
 	if (pressed) {
 		input_report_abs(dev, INPUT_ABS_X, col, false, K_FOREVER);
@@ -153,8 +167,8 @@ static int ft5336_init(const struct device *dev)
 	k_work_init(&data->work, ft5336_work_handler);
 
 	if (config->reset_gpio.port != NULL) {
-		/* Enable reset GPIO and assert reset */
-		r = gpio_pin_configure_dt(&config->reset_gpio, GPIO_OUTPUT_ACTIVE);
+		/* Enable reset GPIO, and pull down */
+		r = gpio_pin_configure_dt(&config->reset_gpio, GPIO_OUTPUT_INACTIVE);
 		if (r < 0) {
 			LOG_ERR("Could not enable reset GPIO");
 			return r;
@@ -166,7 +180,7 @@ static int ft5336_init(const struct device *dev)
 		 */
 		k_sleep(K_MSEC(5));
 		/* Pull reset pin high to complete reset sequence */
-		r = gpio_pin_set_dt(&config->reset_gpio, 0);
+		r = gpio_pin_set_dt(&config->reset_gpio, 1);
 		if (r < 0) {
 			return r;
 		}

@@ -17,9 +17,9 @@
 LOG_MODULE_REGISTER(gt911, CONFIG_INPUT_LOG_LEVEL);
 
 /* GT911 used registers */
-#define DEVICE_ID           __bswap_16(0x8140U)
+#define DEVICE_ID           __bswap_16(0xD109U)//__bswap_16(0x8140U)
 #define REG_STATUS		    __bswap_16(0x814EU)
-#define REG_FIRST_POINT		__bswap_16(0x814FU)
+#define REG_FIRST_POINT		__bswap_16(0xD000U)//__bswap_16(0x814FU)
 
 /* REG_TD_STATUS: Touch points. */
 #define TOUCH_POINTS_MSK	0x0FU
@@ -59,18 +59,7 @@ struct gt911_data {
 	/** Timer (polling mode). */
 	struct k_timer timer;
 #endif
-};
-
-/** gt911 point reg */
-struct  gt911_point_reg_t {
-	uint8_t id;       /*!< Track ID. */
-	uint8_t lowX;     /*!< Low byte of x coordinate. */
-	uint8_t highX;    /*!< High byte of x coordinate. */
-	uint8_t lowY;     /*!< Low byte of y coordinate. */
-	uint8_t highY;    /*!< High byte of x coordinate. */
-	uint8_t lowSize;  /*!< Low byte of point size. */
-	uint8_t highSize; /*!< High byte of point size. */
-	uint8_t reserved; /*!< Reserved. */
+	bool pressed_old;
 };
 
 /*
@@ -100,52 +89,27 @@ static int gt911_i2c_write_read(const struct device *dev,
 
 static int gt911_process(const struct device *dev)
 {
+	struct gt911_data *data = dev->data;
 	int r;
 	uint16_t reg_addr;
-	uint8_t status;
-	uint8_t points;
-	struct gt911_point_reg_t pointRegs;
-	uint16_t row, col;
+	uint32_t row, col;
 	bool pressed;
-
-	/* obtain number of touch points (NOTE: multi-touch ignored) */
-	reg_addr = REG_STATUS;
-	r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr),
-				 &status, sizeof(status));
-	if (r < 0) {
-		return r;
-	}
-
-	points = status & TOUCH_POINTS_MSK;
-	if (points != 0U && points != 1U && (0 != (status & TOUCH_STATUS_MSK))) {
-		points = 1;
-	}
-
-	if (!(status & TOUCH_STATUS_MSK)) {
-		/* Status bit not set, ignore this event */
-		return 0;
-	}
-	/* need to clear the status */
-	uint8_t clear_buffer[3] = {(uint8_t)REG_STATUS, (uint8_t)(REG_STATUS >> 8), 0};
-
-	r = gt911_i2c_write(dev, clear_buffer, sizeof(clear_buffer));
-	if (r < 0) {
-		return r;
-	}
-
-	/* obtain first point X, Y coordinates and event from:
-	 * REG_P1_XH, REG_P1_XL, REG_P1_YH, REG_P1_YL.
-	 */
+	uint8_t buf[7];
+	
 	reg_addr = REG_FIRST_POINT;
 	r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr),
-				 &pointRegs, sizeof(pointRegs));
+				 &buf, sizeof(buf));
 	if (r < 0) {
 		return r;
 	}
 
-	pressed = (points == 1);
-	row = ((pointRegs.highY) << 8U) | pointRegs.lowY;
-	col = ((pointRegs.highX) << 8U) | pointRegs.lowX;
+	pressed = ((buf[0] & 0x6) == 0x6) ? true : false;
+	
+	col = ((buf[1] << 4) | ((buf[3] >> 4) & 0x0f)); // x
+	row = ((buf[2] << 4) | (buf[3] & 0x0f));        // y
+	
+	//col = (col * 150UL) / 255UL;
+	//row = (row * 140UL) / 255UL;	
 
 	LOG_DBG("pressed: %d, row: %d, col: %d", pressed, row, col);
 
@@ -153,10 +117,11 @@ static int gt911_process(const struct device *dev)
 		input_report_abs(dev, INPUT_ABS_X, col, false, K_FOREVER);
 		input_report_abs(dev, INPUT_ABS_Y, row, false, K_FOREVER);
 		input_report_key(dev, INPUT_BTN_TOUCH, 1, true, K_FOREVER);
-	} else {
+	} else if (data->pressed_old && !pressed) {
 		input_report_key(dev, INPUT_BTN_TOUCH, 0, true, K_FOREVER);
 	}
-
+	data->pressed_old = pressed;
+	
 	return 0;
 }
 
@@ -230,7 +195,7 @@ static int gt911_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	r = gpio_pin_configure_dt(&config->rst_gpio, GPIO_OUTPUT_ACTIVE);
+	r = gpio_pin_configure_dt(&config->rst_gpio, GPIO_OUTPUT_INACTIVE);
 	if (r < 0) {
 		LOG_ERR("Could not configure reset GPIO pin");
 		return r;
@@ -253,10 +218,10 @@ static int gt911_init(const struct device *dev)
 	/* Delay at least 10 ms after power on before we configure gt911 */
 	k_sleep(K_MSEC(20));
 	/* reset the device and confgiure the addr mode0 */
-	gpio_pin_set_dt(&config->rst_gpio, 1);
+	gpio_pin_set_dt(&config->rst_gpio, 0);
 	/* hold down at least 1us, 1ms here */
 	k_sleep(K_MSEC(1));
-	gpio_pin_set_dt(&config->rst_gpio, 0);
+	gpio_pin_set_dt(&config->rst_gpio, 1);
 	/* hold down at least 5ms. This is the point the INT pin must be low. */
 	k_sleep(K_MSEC(5));
 	/* hold down 50ms to make sure the address available */
@@ -312,33 +277,6 @@ static int gt911_init(const struct device *dev)
 	}
 	if (r < 0) {
 		LOG_ERR("Device did not respond to I2C request");
-		return r;
-	}
-	if (reg_id != GT911_PRODUCT_ID) {
-		LOG_ERR("The Device ID is not correct");
-		return -ENODEV;
-	}
-
-	/* need to setup the firmware first: read and write */
-	uint8_t gt911Config[REG_CONFIG_SIZE + 2] = {
-		(uint8_t)GT911_CONFIG_REG, (uint8_t)(GT911_CONFIG_REG >> 8)
-	};
-
-	reg_addr = GT911_CONFIG_REG;
-	r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr),
-				 gt911Config + 2, REG_CONFIG_SIZE);
-	if (r < 0) {
-		return r;
-	}
-	if (!gt911_verify_firmware(gt911Config + 2)) {
-		return -ENODEV;
-	}
-
-	gt911Config[REG_CONFIG_SIZE] = gt911_get_firmware_checksum(gt911Config + 2);
-	gt911Config[REG_CONFIG_SIZE + 1] = 1;
-
-	r = gt911_i2c_write(dev, gt911Config, sizeof(gt911Config));
-	if (r < 0) {
 		return r;
 	}
 
