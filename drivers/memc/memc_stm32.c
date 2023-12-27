@@ -64,7 +64,7 @@ static int memc_stm32_init(const struct device *dev)
 	MODIFY_REG(FMC_Bank1_R->BTCR[0], FMC_BCR1_BMAP, FMC_BCR1_BMAP_1);
 #endif
 #endif
-
+	FMC_Bank1->BTCR[0] = 0x000030D2; // coskun fliker fixed.
 	return 0;
 }
 

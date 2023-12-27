@@ -223,6 +223,17 @@ static int lpc11u6x_uartx_fifo_read(const struct device *dev, uint8_t *data,
         data[nr_rx++] = cfg->base->rbr;
     }
 
+    // pin debug!!
+    // uint32_t *pcu = (uint32_t *)0x40001318;
+	// if(*pcu & 0x08UL)
+	// {		
+    //     *pcu &= ~0x08UL;
+	// }
+	// else
+	// {
+	//     *pcu |= 0x08UL;	
+	// }    
+
     return nr_rx;
 }
 
@@ -484,18 +495,18 @@ static int lpc11u6x_uartx_init(const struct device *dev)
                            &pclk);
 
     numerator = pclk / 2;
-    denominator = 16 * cfg->baudrate;    
+    denominator = 16 * cfg->baudrate;
 
     uint32_t cal_index1 = (numerator / (denominator / 10));
     uint32_t cal_index2 = (numerator / denominator) * 10;
-    if((cal_index1 - cal_index2) < 6)
+    if((cfg->baudrate > 9600) || ((cal_index1 - cal_index2) < 6))
     {
         bdr = (numerator / denominator);
     }
     else
     {
         bdr = (numerator / denominator) + 1;
-    }    
+    }
 
     fd = numerator - (bdr * denominator);
     bfr = (fd * 256) / denominator;
@@ -513,24 +524,24 @@ static int lpc11u6x_uartx_init(const struct device *dev)
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(uart0), okay)
     if((uint32_t)cfg->base == 0x40004000) // uart 0
     {
-		IRQ_CONNECT(DT_IRQN(DT_NODELABEL(uart0)),
-					DT_IRQ(DT_NODELABEL(uart0), priority),
-					lpc11u6x_uartx_isr,
-					DEVICE_DT_GET(DT_NODELABEL(uart0)),
-					0);
-		irq_enable(DT_IRQN(DT_NODELABEL(uart0)));
-	}
+        IRQ_CONNECT(DT_IRQN(DT_NODELABEL(uart0)),
+                    DT_IRQ(DT_NODELABEL(uart0), priority),
+                    lpc11u6x_uartx_isr,
+                    DEVICE_DT_GET(DT_NODELABEL(uart0)),
+                    0);
+        irq_enable(DT_IRQN(DT_NODELABEL(uart0)));
+    }
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(uart1), okay)
     if((uint32_t)cfg->base == 0x40004100) // uart 1
     {
-    	IRQ_CONNECT(DT_IRQN(DT_NODELABEL(uart1)),
-                DT_IRQ(DT_NODELABEL(uart1), priority),
-                lpc11u6x_uartx_isr,
-                DEVICE_DT_GET(DT_NODELABEL(uart1)),
-                0);
-    	irq_enable(DT_IRQN(DT_NODELABEL(uart1)));
-	}
+        IRQ_CONNECT(DT_IRQN(DT_NODELABEL(uart1)),
+                    DT_IRQ(DT_NODELABEL(uart1), priority),
+                    lpc11u6x_uartx_isr,
+                    DEVICE_DT_GET(DT_NODELABEL(uart1)),
+                    0);
+        irq_enable(DT_IRQN(DT_NODELABEL(uart1)));
+    }
 #endif
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay)
     IRQ_CONNECT(DT_IRQN(DT_NODELABEL(uart2)),

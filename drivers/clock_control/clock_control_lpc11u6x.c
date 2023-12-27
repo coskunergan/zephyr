@@ -444,6 +444,53 @@ static int lpc11u6x_syscon_init(const struct device *dev)
     FMC->CFG = (0x7858 << 16) | (3 << 8);		// Flash Access in 4 cycles (3-wait)
     FMC->MR = 0;	
 
+    /////////////////////////////////
+    // SCU->PPCLKSR |= (1 << 0);			// To Use MCCR3 Clock Source (Default LSI 500kHz)
+    // SCU->MCCR3 &= ~(0x7ff << 0);
+    // SCU->MCCR3 |= (1 << 0);
+
+    // uint32_t reg_cfg &= ~(0x3f << 10);
+    // reg_cfg &= ~(3 << 2);
+    // reg_cfg |= (0x3f << 10);						// Enable Reset
+
+    // WDT->CR = (0x5A69 << 16) | (0x1A << 4) | reg_cfg;
+
+    // WDT->DR = (7812 * 3) & 0x00FFFFFF; // ~1sn
+    // WDT->WINDR = 0x00FFFFFF;
+
+    // reg_cfg = WDT->CR;
+    // reg_cfg &= ~(0x3f << 4);
+    // WDT->CR = (0x5A69 << 16) | reg_cfg;	
+
+
+    /* Enable System Reset Source for Watch-Dog Timer */
+    SCU->RSER |= (1 << 3);
+
+    /* To Use RingOSC for Watch-Dog Timer (500kHz) */
+    uint32_t reg_cfg = SCU->CSCR;
+    reg_cfg &= ~(0x0F << 8);
+    reg_cfg |= (0x08 << 8);
+    SCU->CSCR = reg_cfg | (0xA507UL << 16);
+    SCU->PPCLKSR |= (1 << 0);
+    SCU->MCCR3 &= ~(0x7ff << 0);
+    SCU->MCCR3 |= (1 << 0);
+
+    /* Set Watch-Dog Timer */
+    reg_cfg &= ~(0x3f << 10);
+    reg_cfg &= ~(3 << 2);
+    reg_cfg |= (0x3f << 10);						// Enable Reset
+    WDT->CR = (0x5A69 << 16) | (0x1A << 4) | reg_cfg;
+
+    /* Start Watch-Dog Timer */
+	uint32_t wdt_period = 1000000 / 8; //~1sn
+    WDT->DR = wdt_period & 0x00FFFFFF;	            // Period = (wdt_period)/(500000/4) = 1/(5000000/4) = 8us
+    WDT->WINDR = 0x00FFFFFF;
+
+    reg_cfg = WDT->CR;
+    reg_cfg &= ~(0x3f << 4);
+    WDT->CR = (0x5A69 << 16) | reg_cfg;	
+    /////////////////////////////////		
+
     struct PCU_Type *pcu;
     uint8_t i;
 
