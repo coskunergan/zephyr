@@ -270,13 +270,13 @@ zephyr_udc0: &usbotg_fs {
 
 	width = <800>;
 	height = <480>;
-	pixel-format = <PANEL_PIXEL_FORMAT_RGB_888>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
 	display-timings {
 		compatible = "zephyr,panel-timing";
-		de-active = <1>;
-		pixelclk-active = <1>;
-		hsync-active = <1>;
-		vsync-active = <1>;
+		de-active = <0>;
+		pixelclk-active = <0>;
+		hsync-active = <0>;
+		vsync-active = <0>;
 		hsync-len = <4>;
 		vsync-len = <4>;
 		hback-porch = <8>;
