@@ -210,42 +210,6 @@ static int qspi_send_cmd(const struct device *dev, QSPI_CommandTypeDef *cmd)
 	return dev_data->cmd_status;
 }
 
-uint8_t BSP_QSPI_EnableMemoryMappedMode(QSPI_HandleTypeDef *hqspi)
-{
-  QSPI_CommandTypeDef      s_command= {0};
-  QSPI_MemoryMappedTypeDef s_mem_mapped_cfg= {0};
-
-#define QUAD_OUT_FAST_READ_CMD               0x6B
-#define QUAD_OUT_FAST_READ_DTR_CMD           0x6D
-#define QUAD_OUT_FAST_READ_4_BYTE_ADDR_CMD   0x6C
-
-#define N25Q128A_DUMMY_CYCLES_READ      8
-
-  /* Configure the command for the read instruction */
-  s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-  s_command.Instruction       = QUAD_OUT_FAST_READ_CMD;
-  s_command.AddressMode       = QSPI_ADDRESS_1_LINE;
-  s_command.AddressSize       = QSPI_ADDRESS_24_BITS;
-  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-  s_command.DataMode          = QSPI_DATA_4_LINES;
-  s_command.DummyCycles       = N25Q128A_DUMMY_CYCLES_READ;
-  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
-  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-  
-  /* Configure the memory mapped mode */
-  s_mem_mapped_cfg.TimeOutActivation = QSPI_TIMEOUT_COUNTER_DISABLE;
-  s_mem_mapped_cfg.TimeOutPeriod     = 0;
-  
-  if (HAL_QSPI_MemoryMapped(hqspi, &s_command, &s_mem_mapped_cfg) != HAL_OK)
-  {
-    while(1);
-  }
-   NVIC_DisableIRQ(QUADSPI_IRQn);
-
-  return 0;
-}
-
 /*
  * Perform a read access over QSPI bus.
  */
@@ -1399,7 +1363,6 @@ static int flash_stm32_qspi_init(const struct device *dev)
 		return -ENODEV;
 	}
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
- 	BSP_QSPI_EnableMemoryMappedMode(&dev_data->hqspi); // coskun for f746g_disco
 
 	return 0;
 }

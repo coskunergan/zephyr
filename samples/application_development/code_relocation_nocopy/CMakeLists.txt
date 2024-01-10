@@ -8,6 +8,8 @@ project(code_relocation_nocopy)
 FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE ${app_sources})
 
+target_sources_ifdef(CONFIG_FLASH_STM32_QSPI app PRIVATE boards/stm32f746g_disco/ext_mem_init.c)
+
 # Run ext_code from the external flash (XIP). No need to copy.
 zephyr_code_relocate(FILES src/ext_code.c LOCATION EXTFLASH_TEXT NOCOPY)
 
