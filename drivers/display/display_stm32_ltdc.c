@@ -289,9 +289,9 @@ static int stm32_ltdc_init(const struct device *dev)
 	LL_RCC_PLLSAI_Disable();
 	LL_RCC_PLLSAI_ConfigDomain_LTDC(LL_RCC_PLLSOURCE_HSE,
 					LL_RCC_PLLM_DIV_25,
-					384,
-					LL_RCC_PLLSAIR_DIV_5,
-					LL_RCC_PLLSAIDIVR_DIV_4);//8
+					416,
+					LL_RCC_PLLSAIR_DIV_4,
+					LL_RCC_PLLSAIDIVR_DIV_4);//26MHz
 
 	LL_RCC_PLLSAI_Enable();
 	while (LL_RCC_PLLSAI_IsReady() != 1) {
@@ -305,6 +305,15 @@ static int stm32_ltdc_init(const struct device *dev)
 	data->current_pixel_format = DISPLAY_INIT_PIXEL_FORMAT;
 	data->current_pixel_size = STM32_LTDC_INIT_PIXEL_SIZE;
 
+//#ifdef CONFIG_STM32_LTDC_DISABLE_FMC_BANK1
+	/* Clear MBKEN and MTYP[1:0] bits. */
+#ifdef CONFIG_SOC_SERIES_STM32F7X
+	FMC_Bank1->BTCR[0] &= ~(0x0000000D);
+#else /* CONFIG_SOC_SERIES_STM32H7X */
+	FMC_Bank1_R->BTCR[0] &= ~(0x0000000D);
+#endif
+//#endif /* CONFIG_STM32_LTDC_DISABLE_FMC_BANK1 */
+
 	/* Initialise the LTDC peripheral */
 	err = HAL_LTDC_Init(&data->hltdc);
 	if (err != HAL_OK) {
@@ -313,11 +322,13 @@ static int stm32_ltdc_init(const struct device *dev)
 
 	/* Configure layer 0 (only one layer is used) */
 	/* LTDC starts fetching pixels and sending them to display after this call */
-	err = HAL_LTDC_ConfigLayer(&data->hltdc, &data->hltdc.LayerCfg[0], 0);
+	err = HAL_LTDC_ConfigLayer(&data->hltdc, &data->hltdc.LayerCfg[0], LTDC_LAYER_1);
 	if (err != HAL_OK) {
 		return err;
 	}
 
+	/* Disable layer 2, since it not used */
+	__HAL_LTDC_LAYER_DISABLE(&data->hltdc, LTDC_LAYER_2);
 	return 0;
 }
 
