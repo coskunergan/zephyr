@@ -473,7 +473,7 @@ static int lpc11u6x_uartx_init(const struct device *dev)
 
     cfg_val |= 0x3; // UART_DATA_BIT_8
     cfg_val &= ~(1 << 3); // UART_PARITY_BIT_NONE
-    cfg_val &= ~(1 << 2); // UART_STOP_BIT_1
+    cfg_val |= (1 << 2); // UART_STOP_BIT_2
 
     cfg->base->lcr = cfg_val;
 
